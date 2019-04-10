@@ -1,5 +1,5 @@
 /**
-Copyright 2019 JasminGraph Team
+Copyright 2019 JasmineGraph Team
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -11,14 +11,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
  */
 
-#include "JasmineGraphFrontEndProtocol.h"
+#ifndef JASMINEGRAPH_C_PYTHONWRAPPER_H
+#define JASMINEGRAPH_C_PYTHONWRAPPER_H
 
-const string ADGR = "adgr";
-const string ADRDF = "adrdf";
-const string RMGR = "rmgr";
-const string EXIT = "exit";
-const string LIST = "lst";
-const string SHTDN = "shdn";
-const string SEND = "send";
-const string ERROR = "error";
-const string TRAIN = "train";
+class CPythonWrapper {
+
+public:
+    static int train(int flagCount, char *trainFlags[]);
+};
+
+#endif //JASMINEGRAPH_C_PYTHONWRAPPER_H
