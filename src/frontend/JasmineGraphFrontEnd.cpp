@@ -24,11 +24,19 @@ limitations under the License.
 #include "../partitioner/local/RDFPartitioner.h"
 #include "../util/logger/Logger.h"
 #include "../server/JasmineGraphServer.h"
+#include "../trainer/python-c-api/Python_C_API.h"
+#include "../trainer/JasminGraphTrainingInitiator.h"
 
 using namespace std;
 
 static int connFd;
 Logger frontend_logger;
+
+char *convert(const std::string &s) {
+    char *pc = new char[s.size() + 1];
+    std::strcpy(pc, s.c_str());
+    return pc;
+}
 
 void *frontendservicesesion(void *dummyPt) {
     frontendservicesessionargs *sessionargs = (frontendservicesessionargs *) dummyPt;
@@ -49,6 +57,36 @@ void *frontendservicesesion(void *dummyPt) {
 
         if (line.compare(EXIT) == 0) {
             break;
+        } else if (line.compare(TRAIN) == 0) {
+            write(sessionargs->connFd, SEND.c_str(), FRONTEND_COMMAND_LENGTH);
+            write(sessionargs->connFd, "\r\n", 2);
+
+            char train_data[300];
+            bzero(train_data, 301);
+
+            read(sessionargs->connFd, train_data, 300);
+
+            string trainData(train_data);
+
+            Utils utils;
+            trainData = utils.trim_copy(trainData, " \f\n\r\t\v");
+            frontend_logger.log("Data received: " + trainData, "info");
+
+            std::vector<std::string> trainargs = Utils::split(trainData, ' ');
+
+            std::vector<char *> vc;
+            std::transform(trainargs.begin(), trainargs.end(), std::back_inserter(vc), convert);
+
+            for ( size_t i = 0 ; i < vc.size() ; i++ )
+                std::cout <<  vc[i] << std::endl;
+            if (vc.size() == 0) {
+                frontend_logger.log("Message format not recognized", "error");
+                break;
+            }
+
+            JasminGraphTrainingInitiator *jasminGraphTrainingInitiator = new JasminGraphTrainingInitiator();
+            jasminGraphTrainingInitiator->InitiateTrainingLocally(trainData);
+//            Python_C_API::train(vc.size(), &vc[0]);
         } else if (line.compare(LIST) == 0) {
             SQLiteDBInterface *sqlite = &sessionargs->sqlite;
             std::stringstream ss;
@@ -152,7 +190,7 @@ void *frontendservicesesion(void *dummyPt) {
             path = strArr[1];
 
             if (JasmineGraphFrontEnd::graphExists(path, dummyPt)) {
-                frontend_logger.log("Graph exists" ,"error");
+                frontend_logger.log("Graph exists", "error");
                 break;
             }
 
@@ -197,32 +235,30 @@ void *frontendservicesesion(void *dummyPt) {
             std::cout << "data received : " << topic_name << endl;
             // After getting the topic name , need to close the connection and ask the user to send the data to given topic
 
-            cppkafka::Configuration configs = {{"metadata.broker.list", "127.0.0.1:9092"}, {"group.id", "knnect"}};
+            cppkafka::Configuration configs = {{"metadata.broker.list", "127.0.0.1:9092"},
+                                               {"group.id",             "knnect"}};
             KafkaConnector kstream(configs);
 
             kstream.Subscribe(topic_name_s);
-            while (true)
-            {
+            while (true) {
                 cout << "Waiting to receive message. . ." << endl;
                 cppkafka::Message msg = kstream.consumer.poll();
-                if (!msg)
-                {
+                if (!msg) {
                     continue;
                 }
 
-                if (msg.get_error())
-                {
-                    if (msg.is_eof())
-                    {
+                if (msg.get_error()) {
+                    if (msg.is_eof()) {
                         cout << "Message end of file received!" << endl;
                     }
                     continue;
                 }
 
-                cout << "Received message on partition " << msg.get_topic() << "/" << msg.get_partition() << ", offset " << msg.get_offset() << endl;
+                cout << "Received message on partition " << msg.get_topic() << "/" << msg.get_partition() << ", offset "
+                     << msg.get_offset() << endl;
                 cout << "Payload = " << msg.get_payload() << endl;
             }
-        } else if (line.compare(RMGR) == 0){
+        } else if (line.compare(RMGR) == 0) {
             write(connFd, SEND.c_str(), FRONTEND_COMMAND_LENGTH);
             write(connFd, "\r\n", 2);
 
@@ -244,10 +280,11 @@ void *frontendservicesesion(void *dummyPt) {
                 frontend_logger.log("Graph with ID " + graphID + " is being deleted now", "info");
                 JasmineGraphFrontEnd::removeGraph(graphID, dummyPt);
             } else {
-                frontend_logger.log("Graph does not exist or cannot be deleted with the current hosts setting" ,"error");
+                frontend_logger.log("Graph does not exist or cannot be deleted with the current hosts setting",
+                                    "error");
             }
         } else {
-            frontend_logger.log("Message format not recognized " + line , "error");
+            frontend_logger.log("Message format not recognized " + line, "error");
         }
     }
     frontend_logger.log("Closing thread " + to_string(pthread_self()) + " and connection", "info");

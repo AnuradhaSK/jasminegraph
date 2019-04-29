@@ -80,6 +80,9 @@ public:
 
     static void updateMetaDB(std::vector<workers> hostWorkerMap, std::vector<std::string> partitionFileList, int graphID,
                  std::string uploadEndTime);
+
+    //return hostWorkerMap
+    static std::vector<JasmineGraphServer::workers> getHostWorkerMap();
 };
 
 

@@ -11,13 +11,21 @@ See the License for the specific language governing permissions and
 limitations under the License.
  */
 
+#include <cstring>
 #include "JasmineGraphInstanceService.h"
 #include "../util/Utils.h"
 #include "../util/logger/Logger.h"
+#include "../trainer/python-c-api/Python_C_API.h"
 
 using namespace std;
 Logger instance_logger;
 pthread_mutex_t file_lock;
+
+char *converter(const std::string &s) {
+    char *pc = new char[s.size() + 1];
+    std::strcpy(pc, s.c_str());
+    return pc;
+}
 
 void *instanceservicesession(void *dummyPt) {
     instanceservicesessionargs *sessionargs = (instanceservicesessionargs *) dummyPt;
@@ -62,8 +70,7 @@ void *instanceservicesession(void *dummyPt) {
             break;
         } else if (line.compare(JasmineGraphInstanceProtocol::READY) == 0) {
             write(connFd, JasmineGraphInstanceProtocol::OK.c_str(), JasmineGraphInstanceProtocol::OK.size());
-        }
-        else if (line.compare(JasmineGraphInstanceProtocol::BATCH_UPLOAD) == 0) {
+        } else if (line.compare(JasmineGraphInstanceProtocol::BATCH_UPLOAD) == 0) {
             instance_logger.log("Received : " + JasmineGraphInstanceProtocol::BATCH_UPLOAD, "info");
             write(connFd, JasmineGraphInstanceProtocol::OK.c_str(), JasmineGraphInstanceProtocol::OK.size());
             instance_logger.log("Sent : " + JasmineGraphInstanceProtocol::OK, "info");
@@ -124,7 +131,7 @@ void *instanceservicesession(void *dummyPt) {
 
             string partitionID = rawname.substr(rawname.find_last_of("_") + 1);
             pthread_mutex_lock(&file_lock);
-            writeCatalogRecord(graphID +":"+partitionID);
+            writeCatalogRecord(graphID + ":" + partitionID);
             pthread_mutex_unlock(&file_lock);
 
             while (!utils.fileExists(fullFilePath)) {
@@ -247,7 +254,7 @@ void *instanceservicesession(void *dummyPt) {
             read(connFd, data, 300);
             string partitionID = (data);
             instance_logger.log("Received partitionID: " + partitionID, "info");
-            deleteGraphPartition(graphID,partitionID);
+            deleteGraphPartition(graphID, partitionID);
             //pthread_mutex_lock(&file_lock);
             //TODO :: Update catalog file
             //pthread_mutex_unlock(&file_lock);
@@ -255,6 +262,24 @@ void *instanceservicesession(void *dummyPt) {
             write(connFd, result.c_str(), result.size());
             instance_logger.log("Sent : " + result, "info");
             instance_logger.log("Done and dusted", "info");
+        } else if (line.compare(JasmineGraphInstanceProtocol::INITIATE_TRAIN) == 0) {
+            instance_logger.log("Received : " + JasmineGraphInstanceProtocol::INITIATE_TRAIN, "info");
+            write(connFd, JasmineGraphInstanceProtocol::OK.c_str(), JasmineGraphInstanceProtocol::OK.size());
+            instance_logger.log("Sent : " + JasmineGraphInstanceProtocol::OK, "info");
+            bzero(data, 301);
+            read(connFd, data, 300);
+            string trainData(data);
+
+            Utils utils;
+            trainData = utils.trim_copy(trainData, " \f\n\r\t\v");
+
+            std::vector<std::string> trainargs = Utils::split(trainData, ' ');
+
+            std::vector<char *> vc;
+            std::transform(trainargs.begin(), trainargs.end(), std::back_inserter(vc), converter);
+
+            Python_C_API::train(vc.size(), &vc[0]);
+
         }
         // TODO :: Implement the rest of the protocol
         // TODO :: INSERT_EDGES,TRUNCATE,COUNT_VERTICES,COUNT_EDGES,LOADPG etc should be implemented
@@ -338,9 +363,13 @@ int JasmineGraphInstanceService::run(int serverPort) {
 
 void deleteGraphPartition(std::string graphID, std::string partitionID) {
     Utils utils;
-    string partitionFilePath = utils.getJasmineGraphProperty("org.jasminegraph.server.instance.datafolder") + "/" + graphID + +"_"+ partitionID;
+    string partitionFilePath =
+            utils.getJasmineGraphProperty("org.jasminegraph.server.instance.datafolder") + "/" + graphID + +"_" +
+            partitionID;
     utils.deleteDirectory(partitionFilePath);
-    string centalStoreFilePath = utils.getJasmineGraphProperty("org.jasminegraph.server.instance.datafolder") + "/" + graphID + +"_centralstore_"+ partitionID;
+    string centalStoreFilePath =
+            utils.getJasmineGraphProperty("org.jasminegraph.server.instance.datafolder") + "/" + graphID +
+            +"_centralstore_" + partitionID;
     utils.deleteDirectory(centalStoreFilePath);
     instance_logger.log("Graph partition and centralstore files are now deleted", "info");
 //    if (!utils.fileExists(partitionFilePath) and !utils.fileExists(centalStoreFilePath)){
@@ -351,9 +380,12 @@ void deleteGraphPartition(std::string graphID, std::string partitionID) {
 void writeCatalogRecord(string record) {
     Utils utils;
     utils.createDirectory(utils.getJasmineGraphProperty("org.jasminegraph.server.instance.datafolder"));
-    string catalogFilePath = utils.getJasmineGraphProperty("org.jasminegraph.server.instance.datafolder")+"/catalog.txt";
+    string catalogFilePath =
+            utils.getJasmineGraphProperty("org.jasminegraph.server.instance.datafolder") + "/catalog.txt";
     ofstream outfile;
     outfile.open(catalogFilePath.c_str(), std::ios_base::app);
     outfile << record << endl;
     outfile.close();
 }
+
+

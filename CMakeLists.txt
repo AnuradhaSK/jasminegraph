@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 project(JasmineGraph)
 
 set(CMAKE_CXX_STANDARD 11)
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -pthread")
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -pthread -I/usr/include/python3.5")
 link_libraries('sqlite3')
 link_libraries('rdkafka')
 link_libraries('cppkafka')
@@ -21,7 +21,8 @@ add_executable(JasmineGraph main.cpp src/server/JasmineGraphServer.cpp src/serve
         src/backend/JasmineGraphBackendProtocol.cpp src/backend/JasmineGraphBackendProtocol.h src/util/logger/Logger.h src/util/logger/Logger.cpp
         src/backend/JasmineGraphBackendProtocol.cpp src/backend/JasmineGraphBackendProtocol.h src/server/JasmineGraphInstanceProtocol.cpp
         src/server/JasmineGraphInstanceProtocol.h src/server/JasmineGraphInstanceFileTransferService.cpp src/server/JasmineGraphInstanceFileTransferService.h
-        src/server/JasmineGraphInstanceService.cpp src/server/JasmineGraphInstanceService.h)
+        src/server/JasmineGraphInstanceService.cpp src/server/JasmineGraphInstanceService.h src/trainer/python-c-api/Python_C_API.cpp src/trainer/python-c-api/Python_C_API.h
+        src/trainer/JasminGraphTrainingInitiator.cpp src/trainer/JasminGraphTrainingInitiator.h)
 
 #file(GLOB_RECURSE Dir1_Sources "*.cpp")
 #add_executable(JesminGraph ${Dir1_Sources})
@@ -29,3 +30,13 @@ add_executable(JasmineGraph main.cpp src/server/JasmineGraphServer.cpp src/serve
 #target_link_libraries(JasmineGraph /usr/local/lib/libmetis.so)
 #TODO: Need to install the library separately
 target_link_libraries(JasmineGraph /usr/local/lib/libmetis.a)
+
+target_link_libraries(JasmineGraph $ENV{HOME}/software/flatbuffers/libflatbuffers.a)
+
+set(PYTHON_EXECUTABLE "/usr/bin/python3.5")
+set(PYTHON_INCLUDE_DIR "/usr/include/python3.5m")
+set(PYTHON_LIBRARIES "/usr/lib/x86_64-linux-gnu/libpython3.5m.so")
+
+include_directories(${PYTHON_INCLUDE_DIRS})
+include_directories(${PYTHON_DIRECTORIES})
+target_link_libraries(JasmineGraph ${PYTHON_LIBRARIES})
